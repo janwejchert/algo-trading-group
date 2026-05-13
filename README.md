@@ -1,8 +1,8 @@
-# Algorithmic Trading — Dynamic Asset Allocation
+# Algorithmic Trading: Dynamic Asset Allocation
 
-Group project for IE University: rule-based weekly portfolio allocation across `ACWI`, `AGG`, `GLD`, `BSV`.
+Group project for IE University. Rule-based weekly portfolio allocation across `ACWI`, `AGG`, `GLD`, `BSV`.
 
-- **Live evaluation:** June 1 – June 29, 2026
+- **Live evaluation:** June 1 to June 29, 2026
 - **Final presentation:** June 30, 2026
 
 ## Team & verticals
@@ -19,13 +19,23 @@ Each vertical produces an independent signal portfolio. The four signal portfoli
 ## Repo layout
 
 ```
-src/         Python modules (data, signals, combiner, backtest)
-notebooks/   Exploration, EDA, backtests
-CLAUDE.md    Shared rules and conventions — read first
+src/             Python modules (data, signals, combiner, backtest)
+notebooks/       Exploration, EDA, backtests
+submissions/     Weekly CSV submission files
+CLAUDE.md        Shared rules and conventions (read first)
+requirements.txt Python dependencies
+```
+
+## Setup
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
 ## Workflow
 
-- `main` is the shared, validated branch. Don't push directly — merge via PR.
+- `main` is the shared, validated branch. Don't push directly. Merge via PR.
 - Each member works on their own branch: `jan-fundamental`, `sacha-technical`, `rayane-macro`, `cesar-sentiment`.
-- Read **CLAUDE.md** before writing code — it covers the signal interface, notebook style, and the project's hard constraints.
+- Read **CLAUDE.md** before writing code. It covers the signal interface, notebook style, the project's hard constraints, and the writing-style rules.

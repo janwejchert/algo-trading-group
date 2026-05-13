@@ -4,12 +4,12 @@ Guidance for Claude Code (and humans) working on this project.
 
 ## Project
 
-**Dynamic Asset Allocation Competition** — Algorithmic Trading, IE University.
+**Dynamic Asset Allocation Competition** for the Algorithmic Trading course at IE University.
 Rule-based weekly portfolio across 4 ETFs.
 
-- Live evaluation: **June 1 – June 29, 2026**
+- Live evaluation: **June 1 to June 29, 2026**
 - Final presentation: **June 30, 2026**
-- Submissions: every Friday **May 29 – June 26** by email (CSV attachment)
+- Submissions: every Friday from **May 29 to June 26** by email (CSV attachment)
 
 ## Team & verticals
 
@@ -19,27 +19,27 @@ The final strategy combines four independent signal models. Each member owns one
 | ------- | ------------ | ----------------------------------------------- |
 | Jan     | Fundamental  | Rates, inflation, growth proxies                |
 | Sacha   | Technical    | MA crossovers, RSI                              |
-| Rayane  | Macro regime | VIX level + yield curve slope → risk-on/off    |
+| Rayane  | Macro regime | VIX level + yield curve slope -> risk-on/off    |
 | Cesar   | Sentiment    | Fear/greed, put/call, news NLP                  |
 
 Final portfolio = weighted blend of the four vertical signal portfolios. The blending weights `w_J + w_S + w_R + w_C = 1` are calibrated in the combination step (lives in `src/`, owned jointly).
 
 ## Hard constraints (from project rules)
 
-**Universe** (Yahoo Finance tickers — no other assets allowed):
+**Universe** (Yahoo Finance tickers; no other assets allowed):
 
-- `ACWI` — iShares MSCI ACWI ETF
-- `AGG` — iShares Core U.S. Aggregate Bond ETF
-- `GLD` — SPDR Gold Shares
-- `BSV` — Invesco Short Term Treasury ETF
+- `ACWI`: iShares MSCI ACWI ETF
+- `AGG`: iShares Core U.S. Aggregate Bond ETF
+- `GLD`: SPDR Gold Shares
+- `BSV`: Invesco Short Term Treasury ETF
 
 **Portfolio rules:**
 
 - Weights sum to 100%
-- Each weight ∈ [0%, 100%]
+- Each weight is in [0%, 100%]
 - Long-only (no shorts)
-- ≤ 25 percentage points total absolute change vs. the previous week's submission
-- Model-driven only — **no discretionary overrides anywhere in the code**
+- At most 25 percentage points total absolute change vs. the previous week's submission
+- Model-driven only. **No discretionary overrides anywhere in the code.**
 
 **Weekly submission (CSV) format:**
 
@@ -49,29 +49,42 @@ Final portfolio = weighted blend of the four vertical signal portfolios. The ble
 - Example: `2026-06-06,Team03,25,35,20,20`
 - Email subject: `Algorithmic Trading Project | Team XX | Portfolio for Week YYYY-MM-DD`
 - Send to: `imunarriz@faculty.ie.edu`
+- Save a copy of every submitted CSV under `submissions/` so we have a full history.
 
 ## Branch workflow
 
-- `main` is the shared, validated branch — **never push to it directly**.
+- `main` is the shared, validated branch. **Never push to it directly.**
 - Each member works on their own branch:
   - `jan-fundamental`
   - `sacha-technical`
   - `rayane-macro`
   - `cesar-sentiment`
 - Open a Pull Request to merge into `main`. At least one teammate reviews before merge.
-- Pull/rebase `main` into your branch before opening a PR to minimize conflicts.
-- Commit messages: `<vertical>: <imperative summary>` — e.g. `fundamental: add CPI z-score signal`.
+- Pull or rebase `main` into your branch before opening a PR to minimize conflicts.
+- Commit message format: `<vertical>: <imperative summary>`. Example: `fundamental: add CPI z-score signal`.
 
 ## Repo layout
 
 ```
-src/         Python modules (data loaders, signal logic per vertical, combiner, backtest)
-notebooks/   Exploration, EDA, backtest reports
-CLAUDE.md    This file — shared conventions
-README.md    Project overview for collaborators
+src/             Python modules (data loaders, signal logic per vertical, combiner, backtest)
+notebooks/       Exploration, EDA, backtest reports
+submissions/     Weekly CSV submission files (one per Friday)
+CLAUDE.md        This file. Shared conventions.
+README.md        Project overview for collaborators.
+requirements.txt Python dependencies.
 ```
 
-`src/` holds reusable code; `notebooks/` holds analysis. **Don't duplicate logic** — notebooks import from `src/`.
+`src/` holds reusable code; `notebooks/` holds analysis. **Don't duplicate logic.** Notebooks import from `src/`.
+
+## Environment setup
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Everyone installs from the same `requirements.txt` so package versions stay consistent across the team. If you add a dependency, update `requirements.txt` in the same PR.
 
 ## Signal interface (the contract between verticals)
 
@@ -87,21 +100,21 @@ def get_weights(as_of_date: pd.Timestamp) -> pd.Series:
     """
 ```
 
-The combiner reads each vertical's `get_weights`, blends with `w_J, w_S, w_R, w_C`, and enforces the 25pp turnover cap against the prior week's submission. **Individual verticals don't need to handle turnover** — that's the combiner's job.
+The combiner reads each vertical's `get_weights`, blends with `w_J, w_S, w_R, w_C`, and enforces the 25pp turnover cap against the prior week's submission. **Individual verticals don't need to handle turnover.** That's the combiner's job.
 
 ## Python style
 
 - Python 3.11+; use `python3`.
 - PEP 8. Four-space indents, `snake_case` for functions and variables.
 - Type hints on every public function.
-- Imports grouped: stdlib → third-party → local. One import per line.
-- No hardcoded absolute paths — use `pathlib.Path` relative to project root.
+- Imports grouped: stdlib, then third-party, then local. One import per line.
+- No hardcoded absolute paths. Use `pathlib.Path` relative to project root.
 - Fix random seeds wherever randomness is used.
-- Default stack: `numpy`, `pandas`, `yfinance`, `matplotlib`, `scipy`, `scikit-learn`, `pandas_datareader`. Discuss in the group chat before adding others.
+- Default stack: `numpy`, `pandas`, `yfinance`, `matplotlib`, `scipy`, `scikit-learn`, `pandas-datareader`. Discuss in the group chat before adding others.
 
 ## Notebook style
 
-- **File name:** `NN_topic_owner.ipynb` — e.g. `01_eda_acwi_jan.ipynb`, `02_rsi_signal_sacha.ipynb`. `NN` orders them on disk.
+- **File name:** `NN_topic_owner.ipynb`. Examples: `01_eda_acwi_jan.ipynb`, `02_rsi_signal_sacha.ipynb`. `NN` orders them on disk.
 - **First cell (Markdown)** must contain: title, author, one-paragraph purpose, last-updated date.
 - **Section headers** (Markdown H2), in this order:
   1. Setup (imports, config)
@@ -109,7 +122,7 @@ The combiner reads each vertical's `get_weights`, blends with `w_J, w_S, w_R, w_
   3. Analysis / signal logic
   4. Results
   5. Notes / next steps
-- **Clear all outputs before committing** — `Kernel → Restart & Clear Output`. Keeps diffs reviewable.
+- **Clear all outputs before committing** (`Kernel` then `Restart & Clear Output`). Keeps diffs reviewable.
 - Import logic from `src/` rather than redefining it inline. Notebooks are for figures, exploration, and writeups.
 - Kernel: `Python 3` (generic, not environment-specific).
 - Add to the setup cell for consistent number formatting:
@@ -119,16 +132,21 @@ The combiner reads each vertical's `get_weights`, blends with `w_J, w_S, w_R, w_
   pd.options.display.float_format = '{:.4f}'.format
   ```
 
+## Writing style
+
+- **No em dashes (`—`)** in code, comments, commit messages, docs, or notebook prose. Use a colon, comma, period, parentheses, or rephrase. Regular hyphens (`-`) for compound words and en dashes (`–`) for date ranges are fine.
+
 ## Data & reproducibility
 
 - Public sources only (Yahoo Finance, FRED, etc.).
-- Cache raw data locally in `data/` (gitignored). Processed data is regenerable from cache + code — never commit it.
-- A backtest must be **deterministic**: same inputs + same code → same weights.
+- Cache raw data locally in `data/` (gitignored). Processed data is regenerable from cache plus code. Never commit it.
+- A backtest must be **deterministic**: same inputs and same code produce the same weights every time.
 
 ## Don'ts
 
 - Don't push to `main` directly.
 - Don't commit Jupyter outputs.
 - Don't commit `data/`, secrets, `.env`, `__pycache__`, or anything in `.gitignore`.
-- Don't introduce discretionary fallbacks — the model produces the weights.
+- Don't introduce discretionary fallbacks. The model produces the weights.
 - Don't add dependencies outside the approved stack without team agreement.
+- Don't use em dashes in any committed file.
