@@ -1,0 +1,37 @@
+{
+  "selected_model_id": "C_xs_momentum_v126",
+  "variant_family": "C_xs_momentum",
+  "params": {
+    "mom_lookbacks": [
+      63,
+      126,
+      252
+    ],
+    "mom_weights": [
+      0.5,
+      0.3,
+      0.2
+    ],
+    "vol_window": 126,
+    "sma_fast": 100,
+    "sma_slow": 200,
+    "ma_kind": "sma",
+    "weight_scheme": "rank",
+    "use_trend_filter": false,
+    "use_vol_adjust": true,
+    "breakout_window": null,
+    "mr_tilt_cap": 0.0,
+    "drawdown_threshold": null,
+    "defensive_split": [
+      0.3,
+      0.7
+    ]
+  },
+  "selection_score": 0.48353658536585364,
+  "train_sharpe": 0.7296017474016352,
+  "train_ann_return": 0.04844741056694368,
+  "train_max_drawdown": -0.14712207821284184,
+  "data_used_for_selection_up_to": "2024-12-31",
+  "test_start": "2025-01-01",
+  "freeze_note": "Parameters frozen before any 2025 data was examined."
+}

@@ -125,7 +125,7 @@ today = pd.Timestamp.today().normalize()
 full_fridays = pd.date_range(
     start=aaii_hist.index.min(), end=today, freq="W-FRI"
 )
-aaii = aaii_hist.reindex(full_fridays).ffill()
+aaii = aaii_hist.reindex(aaii_hist.index.union(full_fridays)).ffill().reindex(full_fridays)
 aaii.index.name = "Date"
 
 out = DATA_DIR / "aaii_weekly.csv"
