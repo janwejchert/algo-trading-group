@@ -14,7 +14,7 @@ from src.fundamental import UNIVERSE, get_weights
 from src.metrics import compute_kpis, portfolio_returns
 
 PERIODS_PER_YEAR = 52
-MIN_PERIODS_FOR_RATIO_METRICS = 52
+MIN_PERIODS_FOR_RATIO = 52
 
 
 def build_weights(rebalance_dates: pd.DatetimeIndex) -> pd.DataFrame:
@@ -58,7 +58,7 @@ def main() -> None:
                     ret,
                     bm,
                     periods_per_year=PERIODS_PER_YEAR,
-                    min_periods_for_ratio_metrics=MIN_PERIODS_FOR_RATIO_METRICS,
+                    min_periods_for_ratio=MIN_PERIODS_FOR_RATIO,
                 ),
             }
             records.append(row)
@@ -67,7 +67,7 @@ def main() -> None:
     df = df.rename(
         columns={
             "n_periods": "n_weeks",
-            "arithmetic_ann_return": "arith_ann_return",
+            "ann_return": "arith_ann_return",
             "best_period": "best_week",
             "worst_period": "worst_week",
         }
@@ -86,7 +86,7 @@ def main() -> None:
     for c in pct_cols:
         if c in df.columns:
             df[c] = df[c].map(lambda x: f"{x:.2%}" if pd.notna(x) else "")
-    ratio_cols = ["Sharpe_rf0", "Sortino_rf0", "calmar", "active_sharpe_vs_bench"]
+    ratio_cols = ["Sharpe", "Sortino", "calmar", "active_sharpe_vs_bench"]
     for c in ratio_cols:
         if c in df.columns:
             df[c] = df[c].map(lambda x: f"{x:.3f}" if pd.notna(x) else "")

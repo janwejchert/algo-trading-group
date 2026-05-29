@@ -1,7 +1,16 @@
-"""Shared performance metrics for strategy and benchmark return series."""
+"""Shared performance metrics for strategy and benchmark return series.
+
+Canonical schema (matches shared/canonical.py): weekly annualisation, RF=0 by
+default, Sortino uses textbook downside deviation (RMS of negative excess).
+"""
 
 import numpy as np
 import pandas as pd
+
+PERIODS_PER_YEAR = 52
+RISK_FREE_RATE = 0.0
+MAR = 0.0
+MIN_PERIODS_FOR_RATIO = 24
 
 
 def portfolio_returns(weights: pd.DataFrame, period_returns: pd.DataFrame) -> pd.Series:
@@ -14,12 +23,12 @@ def compute_kpis(
     returns: pd.Series,
     benchmark: pd.Series | None = None,
     *,
-    periods_per_year: int,
-    mar: float = 0.0,
-    risk_free_rate: float = 0.0,
-    min_periods_for_ratio_metrics: int = 24,
+    periods_per_year: int = PERIODS_PER_YEAR,
+    mar: float = MAR,
+    risk_free_rate: float = RISK_FREE_RATE,
+    min_periods_for_ratio: int = MIN_PERIODS_FOR_RATIO,
 ) -> dict:
-    """Compute core KPIs with standard downside-deviation Sortino."""
+    """Compute the canonical weekly KPI bank."""
     ret = returns.dropna()
     if ret.empty:
         return {}
@@ -43,7 +52,7 @@ def compute_kpis(
     total_return = equity.iloc[-1] - 1
     cagr = equity.iloc[-1] ** (1 / n_years) - 1
 
-    enough_ratio_obs = len(ret) >= min_periods_for_ratio_metrics
+    enough_ratio_obs = len(ret) >= min_periods_for_ratio
     sharpe = np.nan
     sortino = np.nan
     if enough_ratio_obs and excess_vol > 0:
@@ -55,10 +64,10 @@ def compute_kpis(
         "n_periods": len(ret),
         "total_return": total_return,
         "CAGR": cagr,
-        "arithmetic_ann_return": mean * periods_per_year,
+        "ann_return": mean * periods_per_year,
         "ann_vol": vol * ann_scale,
-        "Sharpe_rf0": sharpe,
-        "Sortino_rf0": sortino,
+        "Sharpe": sharpe,
+        "Sortino": sortino,
         "max_drawdown": drawdown.min(),
         "calmar": cagr / abs(drawdown.min()) if drawdown.min() < 0 else np.nan,
         "hit_rate": (ret > 0).mean(),
@@ -70,7 +79,7 @@ def compute_kpis(
         aligned_benchmark = benchmark.reindex(ret.index)
         active = (ret - aligned_benchmark).dropna()
         active_sharpe = np.nan
-        if len(active) >= min_periods_for_ratio_metrics and active.std() > 0:
+        if len(active) >= min_periods_for_ratio and active.std() > 0:
             active_sharpe = (active.mean() / active.std()) * ann_scale
         out["active_sharpe_vs_bench"] = active_sharpe
         out["excess_ann_return"] = active.mean() * periods_per_year if not active.empty else np.nan

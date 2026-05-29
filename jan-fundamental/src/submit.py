@@ -117,8 +117,14 @@ def write_submission(
     *,
     enforce_turnover: bool = True,
     allow_placeholder_team_id: bool = False,
+    vertical_tag: str | None = None,
 ) -> Path:
-    """Write the submission CSV and return the file path."""
+    """Write the submission CSV and return the file path.
+
+    When `vertical_tag` is provided, the filename becomes
+    `{team_id}_{vertical_tag}_{date}.csv` (per-vertical draft form). The default
+    (`None`) produces `{team_id}_{date}.csv` for the final team submission.
+    """
     output_dir.mkdir(exist_ok=True)
     date = pd.Timestamp(submission_date)
     row = build_submission_row(
@@ -129,7 +135,10 @@ def write_submission(
         allow_placeholder_team_id=allow_placeholder_team_id,
     )
     df = pd.DataFrame([row], columns=["week", "team_id", "acwi", "agg", "gld", "bsv"])
-    filename = f"{team_id}_{date.strftime('%Y-%m-%d')}.csv"
+    if vertical_tag:
+        filename = f"{team_id}_{vertical_tag}_{date.strftime('%Y-%m-%d')}.csv"
+    else:
+        filename = f"{team_id}_{date.strftime('%Y-%m-%d')}.csv"
     output_path = output_dir / filename
     df.to_csv(output_path, index=False, float_format="%.2f")
     return output_path
