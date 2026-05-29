@@ -8,4 +8,5 @@ statsmodels>=0.14
 hmmlearn>=0.3
 cvxpy>=1.5
 pandas-datareader>=0.10
+xgboost>=1.7
 jupyter>=1.0
