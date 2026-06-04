@@ -36,28 +36,69 @@ print(f"   {out.name}: {prices.shape[0]} rows, "
 
 # ── 2. NAAIM Exposure Index ───────────────────────────────────────────────────
 print("2/3  naaim_weekly.csv from naaim.org...")
-page = requests.get(
-    "https://www.naaim.org/programs/naaim-exposure-index/",
-    timeout=20,
-    headers=HEADERS,
-)
-# The download link host and path vary (naaim.org vs www.naaim.org, a year in
-# the path, etc.), so match any .xlsx URL on the page and prefer a naaim.org one.
-candidates = re.findall(r"https?://[^\s'\"<>]+?\.xlsx", page.text)
-naaim_url = next(
-    (u for u in candidates if "naaim.org" in u.lower()),
-    candidates[0] if candidates else None,
-)
-if not naaim_url:
-    raise RuntimeError(
-        "Could not find a NAAIM .xlsx link on the exposure-index page "
-        "(layout may have changed or the page is JS-rendered)."
-    )
-print(f"   URL: {naaim_url}")
 
-r = requests.get(naaim_url, timeout=30, headers=HEADERS)
-r.raise_for_status()
-naaim_raw = pd.read_excel(io.BytesIO(r.content))
+# The exposure-index page is JS-rendered, so the .xlsx link is often absent from
+# the raw HTML. Try the stable direct file URLs first, then fall back to scraping.
+naaim_direct_urls = [
+    "https://www.naaim.org/wp-content/uploads/dynamic/NAAIM-Exposure-Index-Data.xlsx",
+    "https://naaim.org/wp-content/uploads/dynamic/NAAIM-Exposure-Index-Data.xlsx",
+]
+
+
+def _valid_naaim_xlsx(content: bytes) -> bool:
+    """True if content parses as an .xlsx that has the expected Date column."""
+    try:
+        probe = pd.read_excel(io.BytesIO(content), nrows=5)
+        return "Date" in probe.columns
+    except Exception:
+        return False
+
+
+naaim_url = None
+naaim_content = None
+for cand in naaim_direct_urls:
+    try:
+        rr = requests.get(cand, timeout=30, headers=HEADERS)
+        if rr.status_code == 200 and _valid_naaim_xlsx(rr.content):
+            naaim_url, naaim_content = cand, rr.content
+            break
+    except Exception:
+        pass
+
+if naaim_content is None:
+    page = requests.get(
+        "https://www.naaim.org/programs/naaim-exposure-index/",
+        timeout=30,
+        headers=HEADERS,
+    )
+    candidates = re.findall(r"https?://[^\s'\"<>]+?\.xlsx", page.text)
+    scraped = next(
+        (u for u in candidates if "naaim.org" in u.lower()),
+        candidates[0] if candidates else None,
+    )
+    if scraped:
+        rr = requests.get(scraped, timeout=30, headers=HEADERS)
+        if rr.status_code == 200 and _valid_naaim_xlsx(rr.content):
+            naaim_url, naaim_content = scraped, rr.content
+
+    if naaim_content is None:
+        # Dump the naaim.org links actually present so the real data location
+        # can be pinned down (the page may use an API or a non-.xlsx export).
+        found = sorted(
+            {u for u in re.findall(r"https?://[^\s'\"<>]+", page.text)
+             if "naaim.org" in u.lower()}
+        )
+        print(f"   [diag] exposure-index page length: {len(page.text)} chars")
+        print(f"   [diag] {len(found)} naaim.org URLs found on the page:")
+        for u in found[:80]:
+            print("         ", u)
+        raise RuntimeError(
+            "Could not locate the NAAIM xlsx (tried direct URLs and page scrape). "
+            "See the [diag] links above."
+        )
+
+print(f"   URL: {naaim_url}")
+naaim_raw = pd.read_excel(io.BytesIO(naaim_content))
 
 naaim_raw = naaim_raw.dropna(subset=["Date"])
 naaim_raw["Date"] = pd.to_datetime(naaim_raw["Date"])
