@@ -67,31 +67,31 @@ def _load_etf_weekly_returns() -> pd.DataFrame:
 
 def get_tier2a_weights(current_views: pd.DataFrame, w_prev: pd.Series = None) -> pd.Series:
     """
-    Tier 2A - Inverse-volatility blend based on 2025 realized volatility.
+    Tier 2A - Inverse-volatility blend based on training-period realized volatility.
+    Calibration window: 2010-2024 only (no 2025 validation data).
     """
     rets = _load_etf_weekly_returns()
-    # Filter for 2025 calibration window
-    rets_2025 = rets.loc["2025"]
-    
+    # Calibrate on training period only to avoid using held-out 2025 data.
+    rets_calib = rets.loc["2010":"2024"]
+
     volatilities = {}
     for vertical, path in RESULTS_DIRS.items():
         hist_file = path / "weekly_weights_history.csv"
         if not hist_file.exists():
             raise FileNotFoundError(f"Missing history for {vertical}: {hist_file}")
-            
+
         hist = pd.read_csv(hist_file, index_col=0, parse_dates=True)
         hist = hist[UNIVERSE]
-        
-        # Align weights and returns for 2025
-        # The return for week t uses the weights assigned at week t-1
-        # Shift weights forward by 1 so the index matches the return it earned
-        weights_shifted = hist.shift(1).loc["2025"]
-        common = rets_2025.index.intersection(weights_shifted.dropna().index)
-        
+
+        # The return for week t uses the weights assigned at week t-1.
+        # Shift weights forward by 1 so the index matches the return it earned.
+        weights_shifted = hist.shift(1).loc["2010":"2024"]
+        common = rets_calib.index.intersection(weights_shifted.dropna().index)
+
         if len(common) < 20:
-            print(f"Warning: Only {len(common)} weeks of overlap for {vertical} in 2025")
-            
-        port_rets = (weights_shifted.loc[common] * rets_2025.loc[common]).sum(axis=1)
+            print(f"Warning: Only {len(common)} weeks of overlap for {vertical} in calibration window")
+
+        port_rets = (weights_shifted.loc[common] * rets_calib.loc[common]).sum(axis=1)
         vol = port_rets.std() * np.sqrt(52)
         volatilities[vertical] = vol
         
@@ -127,27 +127,27 @@ def get_tier2b_weights(current_views: pd.DataFrame, w_prev: pd.Series = None) ->
     risk_aversion = 2.5
     Pi = risk_aversion * Sigma.dot(w_eq)
     
-    # Input 2: View Uncertainty Matrix (Omega) from 2025 tracking error
-    rets_2025 = rets.loc["2025"]
-    eq_rets_2025 = (rets_2025 * w_eq).sum(axis=1)
-    
+    # Input 2: View Uncertainty Matrix (Omega) from training-period tracking error.
+    # Use 2008-2024 only - same window as Sigma - to avoid using held-out 2025 data.
+    rets_calib = rets.loc["2008":"2024"]
+    eq_rets_calib = (rets_calib * w_eq).sum(axis=1)
+
     omega_diag = []
-    
-    # To map rows of current_views to histories, we need to ensure the index matches
-    # Let's assume current_views.index is ["jan", "sacha", "rayane", "cesar"]
+
+    # current_views.index is assumed to be ["jan", "sacha", "rayane", "cesar"]
     for vertical in current_views.index:
         path = RESULTS_DIRS[vertical]
         hist_file = path / "weekly_weights_history.csv"
         if not hist_file.exists():
             raise FileNotFoundError(f"Missing history for {vertical}: {hist_file}")
-            
+
         hist = pd.read_csv(hist_file, index_col=0, parse_dates=True)
         hist = hist[UNIVERSE]
-        weights_shifted = hist.shift(1).loc["2025"]
-        common = rets_2025.index.intersection(weights_shifted.dropna().index)
-        
-        port_rets = (weights_shifted.loc[common] * rets_2025.loc[common]).sum(axis=1)
-        te_rets = port_rets - eq_rets_2025.loc[common]
+        weights_shifted = hist.shift(1).loc["2008":"2024"]
+        common = rets_calib.index.intersection(weights_shifted.dropna().index)
+
+        port_rets = (weights_shifted.loc[common] * rets_calib.loc[common]).sum(axis=1)
+        te_rets = port_rets - eq_rets_calib.loc[common]
         
         tracking_error_var = te_rets.var() * 52
         omega_diag.append(tracking_error_var)
