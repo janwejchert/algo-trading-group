@@ -17,16 +17,33 @@ def step(msg: str):
 def run_cmd(cmd: list, cwd: Path = REPO_ROOT):
     subprocess.run(cmd, cwd=cwd, check=True)
 
-def update_fred_data():
-    """Fetch FRED data via pandas_datareader to bypass the API key requirement."""
+def update_fred_data() -> None:
+    """Fetch FRED macro data via the public fredgraph CSV endpoint.
+
+    Uses requests directly instead of pandas_datareader, which is unmaintained
+    and fails to import on pandas 3.x (its deprecate_kwarg call broke). No API
+    key is required for this endpoint. Each series is written to data/{sid}.csv
+    with columns date,{sid}, matching what the vertical notebooks read from cache.
+    """
     step("Fetching FRED macro data...")
-    import pandas_datareader.data as web
+    import io
+    import requests
+
     series_ids = ["DGS10", "DGS3MO", "BAMLH0A0HYM2", "T10YIE", "DTWEXBGS", "DFII10"]
+    headers = {"User-Agent": "Mozilla/5.0"}
     for sid in series_ids:
         print(f"  -> Fetching {sid}...")
         try:
-            df = web.DataReader(sid, 'fred', "2000-01-01")
-            df.index.name = "date"
+            url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={sid}&cosd=2000-01-01"
+            resp = requests.get(url, timeout=30, headers=headers)
+            resp.raise_for_status()
+            df = pd.read_csv(io.StringIO(resp.text))
+            # fredgraph returns two columns: observation date, then the series id.
+            df.columns = ["date", sid]
+            df["date"] = pd.to_datetime(df["date"])
+            # FRED encodes missing observations as ".".
+            df[sid] = pd.to_numeric(df[sid], errors="coerce")
+            df = df.set_index("date")
             df.to_csv(DATA_DIR / f"{sid}.csv")
         except Exception as e:
             print(f"  -> Error fetching {sid}: {e}")
