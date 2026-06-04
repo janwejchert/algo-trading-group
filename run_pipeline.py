@@ -1,9 +1,11 @@
 import os
+import sys
 import subprocess
 import datetime
 import pandas as pd
 from pathlib import Path
-from src.combiner import get_tier2b_weights, get_last_submission, UNIVERSE, RESULTS_DIRS
+from src.combiner import get_tier2a_weights, get_last_submission, UNIVERSE, RESULTS_DIRS
+from shared.canonical import write_submission_csv
 
 REPO_ROOT = Path(__file__).resolve().parent
 DATA_DIR = REPO_ROOT / "data"
@@ -14,6 +16,14 @@ SUBMISSIONS_DIR.mkdir(exist_ok=True)
 # Public, read-only FRED API key. The team is fine committing it; override it
 # via the FRED_API_KEY environment variable or a .env file if you prefer.
 DEFAULT_FRED_API_KEY = "2d33fd0e25f5535b2e41cbeae5bc2650"
+
+# Each vertical's notebook, keyed to match RESULTS_DIRS from the combiner.
+NOTEBOOKS = {
+    "jan": "jan-fundamental/notebooks/00_fundamental_self_contained_jan.ipynb",
+    "sacha": "sacha-technical/technical_analysis_dynamic_asset_allocation.ipynb",
+    "rayane": "rayane-macro/macro_regime_strategy.ipynb",
+    "cesar": "cesar-sentiment/notebooks/cesar_sentiment_simple.ipynb",
+}
 
 def step(msg: str):
     print(f"\n[{datetime.datetime.now().strftime('%H:%M:%S')}] {msg}")
@@ -85,13 +95,56 @@ def update_fred_data() -> None:
                     print(f"  -> Error fetching {sid}: {e}")
 
 
-# Each vertical's notebook, keyed to match RESULTS_DIRS from the combiner.
-NOTEBOOKS = {
-    "jan": "jan-fundamental/notebooks/00_fundamental_self_contained_jan.ipynb",
-    "sacha": "sacha-technical/technical_analysis_dynamic_asset_allocation.ipynb",
-    "rayane": "rayane-macro/macro_regime_strategy.ipynb",
-    "cesar": "cesar-sentiment/notebooks/cesar_sentiment_simple.ipynb",
-}
+def make_submission(refreshed: "dict | None" = None) -> Path:
+    """Read each vertical's latest view, blend with Tier 2A (inverse-volatility),
+    enforce the 25pp turnover cap, and write the weekly submission CSV.
+
+    refreshed maps vertical -> bool (refreshed this run). When None (combine-only
+    mode) the views are simply read from the committed histories.
+    """
+    step("Extracting current portfolio targets...")
+    if not (DATA_DIR / "etfs_daily.csv").exists():
+        raise FileNotFoundError(
+            "data/etfs_daily.csv missing; run the full pipeline once to build it."
+        )
+
+    views = {}
+    print("\nVertical view dates:")
+    for vert, hist_path in RESULTS_DIRS.items():
+        hist_file = hist_path / "weekly_weights_history.csv"
+        if not hist_file.exists():
+            raise FileNotFoundError(f"Missing history for {vert}. Did the notebook fail?")
+        df = pd.read_csv(hist_file, index_col=0, parse_dates=True)
+        views[vert] = df.iloc[-1][UNIVERSE]
+        if refreshed is None:
+            tag = "from history"
+        else:
+            tag = "fresh" if refreshed.get(vert) else "STALE (last committed)"
+        print(f"  {vert:8s} {df.index[-1].date()}  [{tag}]")
+
+    current_views = pd.DataFrame(views).T
+    print("\nRaw Portfolio Views for the Week:")
+    print(current_views.round(4).to_string())
+
+    step("Blending with Tier 2A (inverse-volatility) + 25pp turnover cap...")
+    w_prev = get_last_submission()
+    w_target = get_tier2a_weights(current_views, w_prev=w_prev)
+
+    turnover_pp = float((w_target - w_prev).abs().sum() * 100)
+    print("\nFinal Recommended Weights:")
+    for asset in UNIVERSE:
+        print(f"  {asset}: {w_target[asset]:.2%}")
+    print(f"  sum: {w_target.sum():.2%} | turnover vs last submission: {turnover_pp:.2f}pp (cap 25.00pp)")
+
+    today = datetime.date.today()
+    friday = today + datetime.timedelta((4 - today.weekday()) % 7)
+    # Canonical writer scales to %, fixes the rounding residual so the row sums
+    # to exactly 100, validates bounds, and names the file Team03_<date>.csv.
+    out_file = write_submission_csv(
+        w_target, week=friday, team_id="Team03", out_dir=SUBMISSIONS_DIR
+    )
+    step(f"Pipeline complete! Submission saved to {out_file}")
+    return out_file
 
 
 def run_pipeline():
@@ -139,53 +192,14 @@ def run_pipeline():
             print(f"  -> WARNING: {name} notebook failed; using its last committed view")
             refreshed[name] = False
 
-    # 3. Combine views using Black-Litterman (Tier 2B).
-    step("Extracting current portfolio targets...")
-    views = {}
-    print("\nVertical view dates (fresh = refreshed this run):")
-    for vert, hist_path in RESULTS_DIRS.items():
-        hist_file = hist_path / "weekly_weights_history.csv"
-        if not hist_file.exists():
-            raise FileNotFoundError(f"Missing history for {vert}. Did the notebook fail?")
-        df = pd.read_csv(hist_file, index_col=0, parse_dates=True)
-        views[vert] = df.iloc[-1][UNIVERSE]
-        tag = "fresh" if refreshed.get(vert) else "STALE (last committed)"
-        print(f"  {vert:8s} {df.index[-1].date()}  [{tag}]")
+    # 3. Blend the views (Tier 2A) and write the submission.
+    make_submission(refreshed)
 
-    current_views = pd.DataFrame(views).T
-    print("\nRaw Portfolio Views for the Week:")
-    print(current_views.round(4).to_string())
-
-    step("Applying Black-Litterman Optimisation (Tier 2B)...")
-    w_prev = get_last_submission()
-    w_target = get_tier2b_weights(current_views, w_prev=w_prev)
-
-    turnover_pp = float((w_target - w_prev).abs().sum() * 100)
-    print("\nFinal Recommended Weights:")
-    for asset in UNIVERSE:
-        print(f"  {asset}: {w_target[asset]:.2%}")
-    print(f"  sum: {w_target.sum():.2%} | turnover vs last submission: {turnover_pp:.2f}pp (cap 25.00pp)")
-
-    # 4. Generate the final submission CSV
-    today = datetime.date.today()
-    friday = today + datetime.timedelta((4 - today.weekday()) % 7)
-    date_str = friday.strftime("%Y-%m-%d")
-    out_file = SUBMISSIONS_DIR / f"Team03_{date_str}.csv"
-
-    # Format: week,team_id,acwi,agg,gld,bsv
-    row = {
-        "week": date_str,
-        "team_id": "Team03",
-        "acwi": round(w_target["ACWI"] * 100, 2),
-        "agg": round(w_target["AGG"] * 100, 2),
-        "gld": round(w_target["GLD"] * 100, 2),
-        "bsv": round(w_target["BSV"] * 100, 2)
-    }
-
-    df_out = pd.DataFrame([row])
-    df_out.to_csv(out_file, index=False)
-
-    step(f"Pipeline complete! Submission saved to {out_file}")
 
 if __name__ == "__main__":
-    run_pipeline()
+    # --combine-only re-blends the existing committed views and rewrites the
+    # submission CSV without re-fetching data or re-running the notebooks.
+    if "--combine-only" in sys.argv:
+        make_submission()
+    else:
+        run_pipeline()
