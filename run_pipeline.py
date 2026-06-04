@@ -84,44 +84,74 @@ def update_fred_data() -> None:
                 else:
                     print(f"  -> Error fetching {sid}: {e}")
 
+
+# Each vertical's notebook, keyed to match RESULTS_DIRS from the combiner.
+NOTEBOOKS = {
+    "jan": "jan-fundamental/notebooks/00_fundamental_self_contained_jan.ipynb",
+    "sacha": "sacha-technical/technical_analysis_dynamic_asset_allocation.ipynb",
+    "rayane": "rayane-macro/macro_regime_strategy.ipynb",
+    "cesar": "cesar-sentiment/notebooks/cesar_sentiment_simple.ipynb",
+}
+
+
 def run_pipeline():
     step("--- STARTING END-TO-END PIPELINE ---")
-    
-    # 1. Update Market & Sentiment Data
+
+    # 1. Market and FRED data. update_fred_data() caches FRED; _build_cesar_data.py
+    # builds etfs_daily.csv (needed by the combiner) plus the NAAIM/AAII sentiment
+    # files. NAAIM moved its data behind a JavaScript members-widget with no
+    # downloadable file, so the sentiment build can fail. Tolerate a non-zero exit
+    # and continue with whatever was produced (etfs_daily.csv is written first).
     update_fred_data()
-    
-    step("Fetching AAII/NAAIM Sentiment Data...")
-    run_cmd(["python", "_build_cesar_data.py"])
 
-    # 2. Execute all vertical models to generate their latest views
-    notebooks = {
-        "Fundamental (Jan)": "jan-fundamental/notebooks/00_fundamental_self_contained_jan.ipynb",
-        "Technical (Sacha)": "sacha-technical/technical_analysis_dynamic_asset_allocation.ipynb",
-        "Macro (Rayane)": "rayane-macro/macro_regime_strategy.ipynb",
-        "Sentiment (Cesar)": "cesar-sentiment/notebooks/cesar_sentiment_simple.ipynb"
-    }
+    step("Building market and sentiment data...")
+    try:
+        run_cmd(["python", "_build_cesar_data.py"])
+    except subprocess.CalledProcessError:
+        print("  -> WARNING: data builder exited non-zero (NAAIM/AAII unavailable); continuing")
 
-    for name, path in notebooks.items():
-        step(f"Executing {name}...")
-        run_cmd([
-            "jupyter", "nbconvert", 
-            "--to", "notebook", 
-            "--execute", 
-            "--inplace", 
-            path
-        ])
+    if not (DATA_DIR / "etfs_daily.csv").exists():
+        raise FileNotFoundError(
+            "data/etfs_daily.csv was not built; cannot run the combiner. "
+            "Check the yfinance step in _build_cesar_data.py."
+        )
 
-    # 3. Combine Views using Black-Litterman
+    # 2. Refresh each vertical's view. A vertical that cannot refresh (failed
+    # notebook, or Cesar with no sentiment data) falls back to its last committed
+    # view, which the combiner reads from weekly_weights_history.csv. This is a
+    # transparent degradation, not a discretionary override: every weight still
+    # comes from a model output, and the freshness of each is reported below.
+    sentiment_ready = (DATA_DIR / "naaim_weekly.csv").exists() and (
+        DATA_DIR / "aaii_weekly.csv"
+    ).exists()
+
+    refreshed = {}
+    for name, path in NOTEBOOKS.items():
+        if name == "cesar" and not sentiment_ready:
+            print("  -> SKIP cesar: sentiment data unavailable (NAAIM); using last committed view")
+            refreshed[name] = False
+            continue
+        step(f"Executing {name} notebook...")
+        try:
+            run_cmd(["jupyter", "nbconvert", "--to", "notebook", "--execute", "--inplace", path])
+            refreshed[name] = True
+        except subprocess.CalledProcessError:
+            print(f"  -> WARNING: {name} notebook failed; using its last committed view")
+            refreshed[name] = False
+
+    # 3. Combine views using Black-Litterman (Tier 2B).
     step("Extracting current portfolio targets...")
     views = {}
-    for vert, path in RESULTS_DIRS.items():
-        hist_file = path / "weekly_weights_history.csv"
+    print("\nVertical view dates (fresh = refreshed this run):")
+    for vert, hist_path in RESULTS_DIRS.items():
+        hist_file = hist_path / "weekly_weights_history.csv"
         if not hist_file.exists():
             raise FileNotFoundError(f"Missing history for {vert}. Did the notebook fail?")
-        
         df = pd.read_csv(hist_file, index_col=0, parse_dates=True)
         views[vert] = df.iloc[-1][UNIVERSE]
-    
+        tag = "fresh" if refreshed.get(vert) else "STALE (last committed)"
+        print(f"  {vert:8s} {df.index[-1].date()}  [{tag}]")
+
     current_views = pd.DataFrame(views).T
     print("\nRaw Portfolio Views for the Week:")
     print(current_views.round(4).to_string())
@@ -130,16 +160,18 @@ def run_pipeline():
     w_prev = get_last_submission()
     w_target = get_tier2b_weights(current_views, w_prev=w_prev)
 
+    turnover_pp = float((w_target - w_prev).abs().sum() * 100)
     print("\nFinal Recommended Weights:")
     for asset in UNIVERSE:
         print(f"  {asset}: {w_target[asset]:.2%}")
+    print(f"  sum: {w_target.sum():.2%} | turnover vs last submission: {turnover_pp:.2f}pp (cap 25.00pp)")
 
     # 4. Generate the final submission CSV
     today = datetime.date.today()
     friday = today + datetime.timedelta((4 - today.weekday()) % 7)
     date_str = friday.strftime("%Y-%m-%d")
     out_file = SUBMISSIONS_DIR / f"Team03_{date_str}.csv"
-    
+
     # Format: week,team_id,acwi,agg,gld,bsv
     row = {
         "week": date_str,
@@ -149,10 +181,10 @@ def run_pipeline():
         "gld": round(w_target["GLD"] * 100, 2),
         "bsv": round(w_target["BSV"] * 100, 2)
     }
-    
+
     df_out = pd.DataFrame([row])
     df_out.to_csv(out_file, index=False)
-    
+
     step(f"Pipeline complete! Submission saved to {out_file}")
 
 if __name__ == "__main__":
