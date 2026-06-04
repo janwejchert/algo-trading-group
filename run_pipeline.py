@@ -11,42 +11,78 @@ SUBMISSIONS_DIR = REPO_ROOT / "submissions"
 DATA_DIR.mkdir(exist_ok=True)
 SUBMISSIONS_DIR.mkdir(exist_ok=True)
 
+# Public, read-only FRED API key. The team is fine committing it; override it
+# via the FRED_API_KEY environment variable or a .env file if you prefer.
+DEFAULT_FRED_API_KEY = "2d33fd0e25f5535b2e41cbeae5bc2650"
+
 def step(msg: str):
     print(f"\n[{datetime.datetime.now().strftime('%H:%M:%S')}] {msg}")
 
 def run_cmd(cmd: list, cwd: Path = REPO_ROOT):
     subprocess.run(cmd, cwd=cwd, check=True)
 
-def update_fred_data() -> None:
-    """Fetch FRED macro data via the public fredgraph CSV endpoint.
+def _load_dotenv() -> None:
+    """Load KEY=VALUE pairs from a gitignored .env at the repo root into os.environ.
 
-    Uses requests directly instead of pandas_datareader, which is unmaintained
-    and fails to import on pandas 3.x (its deprecate_kwarg call broke). No API
-    key is required for this endpoint. Each series is written to data/{sid}.csv
-    with columns date,{sid}, matching what the vertical notebooks read from cache.
+    Variables already present in the real environment are not overwritten.
+    """
+    env_path = REPO_ROOT / ".env"
+    if not env_path.exists():
+        return
+    for line in env_path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip())
+
+
+def update_fred_data() -> None:
+    """Fetch FRED macro data and cache each series to data/{sid}.csv (date,{sid}).
+
+    Uses the official FRED API with FRED_API_KEY (from the environment or .env,
+    falling back to DEFAULT_FRED_API_KEY). Retries each series a few times to
+    ride out transient timeouts. Avoids pandas_datareader, which is unmaintained
+    and fails to import on pandas 3.x. The cache format matches what the vertical
+    notebooks read.
     """
     step("Fetching FRED macro data...")
-    import io
+    import time
     import requests
 
+    _load_dotenv()
+    api_key = os.environ.get("FRED_API_KEY") or DEFAULT_FRED_API_KEY
     series_ids = ["DGS10", "DGS3MO", "BAMLH0A0HYM2", "T10YIE", "DTWEXBGS", "DFII10"]
     headers = {"User-Agent": "Mozilla/5.0"}
+
     for sid in series_ids:
         print(f"  -> Fetching {sid}...")
-        try:
-            url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={sid}&cosd=2000-01-01"
-            resp = requests.get(url, timeout=30, headers=headers)
-            resp.raise_for_status()
-            df = pd.read_csv(io.StringIO(resp.text))
-            # fredgraph returns two columns: observation date, then the series id.
-            df.columns = ["date", sid]
-            df["date"] = pd.to_datetime(df["date"])
-            # FRED encodes missing observations as ".".
-            df[sid] = pd.to_numeric(df[sid], errors="coerce")
-            df = df.set_index("date")
-            df.to_csv(DATA_DIR / f"{sid}.csv")
-        except Exception as e:
-            print(f"  -> Error fetching {sid}: {e}")
+        for attempt in range(3):
+            try:
+                resp = requests.get(
+                    "https://api.stlouisfed.org/fred/series/observations",
+                    params={
+                        "series_id": sid,
+                        "api_key": api_key,
+                        "file_type": "json",
+                        "observation_start": "2000-01-01",
+                    },
+                    timeout=60,
+                    headers=headers,
+                )
+                resp.raise_for_status()
+                df = pd.DataFrame(resp.json().get("observations", []))
+                df["date"] = pd.to_datetime(df["date"])
+                # FRED encodes missing observations as ".".
+                df[sid] = pd.to_numeric(df["value"], errors="coerce")
+                df = df[["date", sid]].set_index("date")
+                df.to_csv(DATA_DIR / f"{sid}.csv")
+                break
+            except Exception as e:
+                if attempt < 2:
+                    time.sleep(2 ** attempt)
+                else:
+                    print(f"  -> Error fetching {sid}: {e}")
 
 def run_pipeline():
     step("--- STARTING END-TO-END PIPELINE ---")

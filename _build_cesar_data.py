@@ -41,13 +41,18 @@ page = requests.get(
     timeout=20,
     headers=HEADERS,
 )
-match = re.search(
-    r"https://naaim\.org/wp-content/uploads/[^'\"]+\.xlsx",
-    page.text,
+# The download link host and path vary (naaim.org vs www.naaim.org, a year in
+# the path, etc.), so match any .xlsx URL on the page and prefer a naaim.org one.
+candidates = re.findall(r"https?://[^\s'\"<>]+?\.xlsx", page.text)
+naaim_url = next(
+    (u for u in candidates if "naaim.org" in u.lower()),
+    candidates[0] if candidates else None,
 )
-if not match:
-    raise RuntimeError("Could not find NAAIM Excel URL on naaim.org")
-naaim_url = match.group(0)
+if not naaim_url:
+    raise RuntimeError(
+        "Could not find a NAAIM .xlsx link on the exposure-index page "
+        "(layout may have changed or the page is JS-rendered)."
+    )
 print(f"   URL: {naaim_url}")
 
 r = requests.get(naaim_url, timeout=30, headers=HEADERS)
