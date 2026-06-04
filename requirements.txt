@@ -9,4 +9,10 @@ hmmlearn>=0.3
 cvxpy>=1.5
 pandas-datareader>=0.10
 xgboost>=1.7
+seaborn>=0.13
 jupyter>=1.0
+
+# I/O helpers required by _build_cesar_data.py to read sentiment workbooks:
+# openpyxl reads the NAAIM .xlsx, xlrd reads the legacy AAII .xls.
+openpyxl>=3.1
+xlrd>=2.0
