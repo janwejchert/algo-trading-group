@@ -1,5 +1,5 @@
 variant,total_return,annualized_return,annualized_vol,sharpe,max_drawdown,calmar,win_rate_daily,n_rebalances,avg_weekly_turnover
-Full selected model,1.2084,0.0484,0.068,0.7296,-0.1471,0.3293,0.5434,876,0.1226
-No trend filter,1.2084,0.0484,0.068,0.7296,-0.1471,0.3293,0.5434,876,0.1226
+Full selected model,1.2386,0.0493,0.0671,0.7509,-0.1471,0.3351,0.5441,876,0.1304
+No trend filter,1.2386,0.0493,0.0671,0.7509,-0.1471,0.3351,0.5441,876,0.1304
 No vol adjustment,1.7392,0.062,0.0799,0.7928,-0.1471,0.4216,0.5424,876,0.1144
-+ MR tilt 5pp (diagnostic),1.2175,0.0487,0.0673,0.74,-0.1456,0.3346,0.5441,876,0.1305
++ MR tilt 5pp (diagnostic),1.2467,0.0495,0.0664,0.7617,-0.1456,0.3402,0.5455,876,0.1373

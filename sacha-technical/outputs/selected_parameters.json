@@ -1,5 +1,5 @@
 {
-  "selected_model_id": "C_xs_momentum_v126",
+  "selected_model_id": "C_xs_momentum_v21",
   "variant_family": "C_xs_momentum",
   "params": {
     "mom_lookbacks": [
@@ -12,7 +12,7 @@
       0.3,
       0.2
     ],
-    "vol_window": 126,
+    "vol_window": 21,
     "sma_fast": 100,
     "sma_slow": 200,
     "ma_kind": "sma",
@@ -27,10 +27,10 @@
       0.7
     ]
   },
-  "selection_score": 0.48353658536585364,
-  "train_sharpe": 0.7296017474016352,
-  "train_ann_return": 0.04844741056694368,
-  "train_max_drawdown": -0.14712207821284184,
+  "selection_score": 0.48170731707317066,
+  "train_sharpe": 0.7508896939127564,
+  "train_ann_return": 0.04929896927044797,
+  "train_max_drawdown": -0.1471216236701106,
   "data_used_for_selection_up_to": "2024-12-31",
   "test_start": "2025-01-01",
   "freeze_note": "Parameters frozen before any 2025 data was examined."
