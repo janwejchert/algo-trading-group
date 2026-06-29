@@ -66,15 +66,28 @@ Final portfolio = weighted blend of the four vertical signal portfolios. The ble
 ## Repo layout
 
 ```
-src/             Python modules (data loaders, signal logic per vertical, combiner, backtest)
-notebooks/       Exploration, EDA, backtest reports
-submissions/     Weekly CSV submission files (one per Friday)
-CLAUDE.md        This file. Shared conventions.
-README.md        Project overview for collaborators.
-requirements.txt Python dependencies.
+jan-fundamental/      Jan's vertical: notebooks/, src/, results/, submissions/
+sacha-technical/      Sacha's vertical: notebooks/, outputs/, results/, submissions/
+rayane-macro/         Rayane's vertical: notebooks/, outputs/, results/, submissions/
+cesar-sentiment/      Cesar's vertical: notebooks/, results/, submissions/
+shared/               canonical.py (KPI/turnover/submission helpers inlined verbatim into
+                      each notebook) and parity_check.py (asserts the four stay in sync)
+src/combiner.py       Blends the four vertical views; Tier 1 (equal), Tier 2A (inverse-vol,
+                      live), Tier 2B (Black-Litterman) are implemented; Tier 2A is used
+run_pipeline.py       End-to-end weekly run: refresh data, execute the four notebooks,
+                      blend (Tier 2A), enforce the 25pp cap, write Team03_<date>.csv
+submissions/          Final Team03_YYYY-MM-DD.csv files (one per Friday)
+presentation/         reveal.js final-presentation deck, figures, speaker notes
+data/                 Local raw-data cache (gitignored, regenerable from code)
+CLAUDE.md             This file. Shared conventions.
+README.md             Project overview for collaborators.
+requirements.txt      Python dependencies.
 ```
 
-`src/` holds reusable code; `notebooks/` holds analysis. **Don't duplicate logic.** Notebooks import from `src/`.
+Each vertical is self-contained in its own folder and exposes the same
+`get_weights(as_of_date)` contract. Reusable shared logic lives in `shared/` and `src/`.
+**Don't duplicate logic.** The canonical KPI/turnover/submission code in `shared/canonical.py`
+is the single source of truth; `shared/parity_check.py` verifies every notebook matches it.
 
 ## Environment setup
 

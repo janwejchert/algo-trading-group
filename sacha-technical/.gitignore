@@ -21,7 +21,7 @@ env/
 .env.*
 !.env.example
 
-# Data (cache locally — regenerate from code)
+# Data (cache locally, regenerate from code)
 data/
 
 # IDE

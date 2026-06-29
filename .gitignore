@@ -21,8 +21,12 @@ env/
 .env.*
 !.env.example
 
-# Data (cache locally — regenerate from code)
+# Data (cache locally, regenerate from code)
 data/
+
+# Regenerable model artifacts
+*.pkl
+*.joblib
 
 # IDE
 .vscode/
@@ -36,3 +40,4 @@ Thumbs.db
 
 # Course-provided materials (not for redistribution)
 Lecture Material/
+*.pdf
