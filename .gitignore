@@ -38,6 +38,7 @@ data/
 .DS_Store
 Thumbs.db
 
-# Course-provided materials (not for redistribution)
+# Course-provided materials (keep the project brief; ignore other PDFs)
 Lecture Material/
 *.pdf
+!/Project Guidelines - Group.pdf
