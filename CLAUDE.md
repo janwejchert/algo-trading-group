@@ -77,7 +77,6 @@ src/combiner.py       Blends the four vertical views; Tier 1 (equal), Tier 2A (i
 run_pipeline.py       End-to-end weekly run: refresh data, execute the four notebooks,
                       blend (Tier 2A), enforce the 25pp cap, write Team03_<date>.csv
 submissions/          Final Team03_YYYY-MM-DD.csv files (one per Friday)
-presentation/         reveal.js final-presentation deck, figures, speaker notes
 data/                 Local raw-data cache (gitignored, regenerable from code)
 CLAUDE.md             This file. Shared conventions.
 README.md             Project overview for collaborators.

@@ -28,7 +28,6 @@ shared/               canonical.py (KPI/turnover/submission code inlined into ea
 src/combiner.py       Blends the four vertical views (Tier 2A inverse-volatility, live)
 run_pipeline.py       End-to-end weekly run: refresh data, run notebooks, blend, write CSV
 submissions/          Final Team03_YYYY-MM-DD.csv files (one per Friday)
-presentation/         reveal.js final-presentation deck, figures, speaker notes
 data/                 Local raw-data cache (gitignored, regenerable from code)
 CLAUDE.md             Shared rules and conventions (read first)
 requirements.txt      Python dependencies
